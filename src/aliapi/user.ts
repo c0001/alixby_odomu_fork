@@ -8,6 +8,7 @@ import { IAliUserDriveCapacity, IAliUserDriveDetails } from './models'
 import { GetSignature } from './utils'
 import getUuid from 'uuid-by-string'
 import { useSettingStore } from '../store'
+import { isEmpty } from 'lodash'
 
 export const TokenReTimeMap = new Map<string, number>()
 export const TokenLockMap = new Map<string, number>()
@@ -18,7 +19,7 @@ export const SessionReTimeMap = new Map<string, number>()
 export default class AliUser {
 
   static async ApiSessionRefreshAccount(token: ITokenInfo, showMessage: boolean): Promise<boolean> {
-    if(!token.user_id) return false
+    if (!token.user_id) return false
     while (true) {
       const lock = SessionLockMap.has(token.user_id)
       if (lock) await Sleep(1000)
@@ -117,9 +118,16 @@ export default class AliUser {
 
 
   static async OpenApiTokenRefreshAccount(token: ITokenInfo, showMessage: boolean, forceRefresh: boolean = false): Promise<boolean> {
-    if (!token.open_api_enable || !token.open_api_refresh_token) {
-      await useSettingStore().updateOpenApiToken()
+    if (!token.open_api_enable || isEmpty(token.open_api_refresh_token)) {
+      await useSettingStore().updateStore({
+        uiEnableOpenApi: false,
+        uiOpenApiAccessToken: token.open_api_access_token,
+        uiOpenApiRefreshToken: token.open_api_refresh_token
+      })
       return false
+    }
+    if (isEmpty(token.open_api_access_token)) {
+      token.open_api_expires_in = 0
     }
     // 防止重复刷新
     if (!forceRefresh && token.open_api_expires_in >= Date.now()) {
@@ -155,7 +163,7 @@ export default class AliUser {
     OpenApiTokenLockMap.delete(token.user_id)
     if (AliHttp.IsSuccess(resp.code)) {
       OpenApiTokenReTimeMap.set(token.user_id, Date.now())
-      useSettingStore().updateStore( {
+      useSettingStore().updateStore({
         uiOpenApiAccessToken: resp.body.access_token,
         uiOpenApiRefreshToken: resp.body.refresh_token
       })
@@ -194,7 +202,7 @@ export default class AliUser {
       client_secret: useSettingStore().uiOpenApiClientSecret,
       scopes: ['user:base', 'file:all:read', 'file:all:write'],
       width: 348,
-      height: 400,
+      height: 400
     }
     const url = 'https://open.aliyundrive.com/oauth/authorize/qrcode'
     const resp = await AliHttp.Post(url, postData, '', '')
@@ -223,7 +231,7 @@ export default class AliUser {
       }
     }
     if (AliHttp.IsSuccess(resp.code)) {
-      let statusCode = resp.body.status;
+      let statusCode = resp.body.status
       return {
         authCode: statusCode === 'LoginSuccess' ? resp.body.authCode : '',
         statusCode: statusCode,
@@ -236,7 +244,7 @@ export default class AliUser {
   }
 
   static async OpenApiLoginByAuthCode(token: ITokenInfo, authCode: string): Promise<any> {
-    if(!authCode) return false
+    if (!authCode) return false
     // 构造请求体
     const postData = {
       code: authCode,
@@ -285,19 +293,25 @@ export default class AliUser {
     // console.log(JSON.stringify(resp))
     if (AliHttp.IsSuccess(signResp.code)) {
       if (!signResp.body || !signResp.body.result) {
-        message.error("签到失败" + signResp.body?.message)
+        message.error('签到失败' + signResp.body?.message)
         return -1
       }
-      let sign_data
-      const { title, signInCount = 0, signInLogs = [] } = signResp.body.result
-      for (let i = 0; i < signInLogs.length - 1; i++) {
-          if (signInLogs[i]['status'] === 'miss') {
-            sign_data = signInLogs[i - 1]
-            break
-         }
+      const { signInCount = 0, signInLogs = [] } = signResp.body.result
+      const sign_day = new Date().getDate()
+      let sign_data: any = {
+        calendarDay: sign_day,
+        isReward: false,
+        reward: { name: '', description: '' }
+      }
+      for (let signInLog of signInLogs) {
+        const calendarDay = signInLog['calendarDay']
+        if (calendarDay && parseInt(calendarDay) === sign_day) {
+          sign_data = signInLog
+          break
+        }
       }
       let reward = '无奖励'
-      if (sign_data['type'] !== 'luckyBottle') {
+      if (!sign_data['isReward']) {
         const rewardUrl = 'https://member.aliyundrive.com/v1/activity/sign_in_reward'
         const rewardResp = await AliHttp.Post(rewardUrl, { signInDay: signInCount }, token.user_id, '')
         if (AliHttp.IsSuccess(rewardResp.code)) {
@@ -306,13 +320,15 @@ export default class AliUser {
             return -1
           }
           const result = rewardResp.body.result
-          reward = `获得【${result["name"]}】 - ${result["description"]}`
+          reward = `获得【${result['name']}】 - ${result['description']}`
         }
+      } else {
+        reward = `获得【${sign_data['reward']['name']}】 - ${sign_data['reward']['description']}`
       }
-      message.info(`本月累计签到${signInCount}次，本次签到 ${reward}`)
-      return signInCount
+      message.info(`【${token.nick_name || token.user_name}】本月累计签到${signInCount}次，本次签到 ${reward}`)
+      return parseInt(sign_data['calendarDay'])
     } else {
-      message.error("签到失败" + signResp.body?.message)
+      message.error('签到失败' + signResp.body?.message)
     }
     return -1
   }

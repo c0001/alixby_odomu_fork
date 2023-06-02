@@ -2,6 +2,17 @@ name: BUG提交 / BUG Report
 description: Report bugs to developers
 labels: ["BUG"]
 body:
+  - type: checkboxes
+    attributes:
+      label: 确认问题 / Assignments
+      description: 提交issue请确保完成以下前提，否则该issue可能被忽略 / Make sure you read checkboxs below
+      options:
+        - label: 不存在相似或相关的issue / No similar or related issues
+          required: true
+        - label: 最新版本是否存在此问题 / Latest app does not work
+          required: false
+        - label: 旧版本是否存在此问题 / Oldest app does not work
+          required: false
   - type: textarea
     attributes:
       label: 问题描述 / Describe Bugs
@@ -15,12 +26,11 @@ body:
   - type: textarea
     attributes:
       label: 日志提交 / Relevant log output
-      description: 日志位于设置-运行日志-复制日志
+      description: 日志位于设置-运行日志-复制日志(请截取部分日志，日志不要太长)
       placeholder: "请用```将日志内容包裹"
   - type: input
     attributes:
       label: 软件版本 / App version
-      placeholder: "v3.10.30"
     validations:
       required: true
   - type: dropdown
@@ -32,7 +42,10 @@ body:
         - Windows
         - Linux
         - Mac
-        - Other
     validations:
       required: true 
+  - type: input
+    attributes:
+      label: 系统版本 / System Version
+      description: 系统版本
       

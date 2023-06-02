@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import DebugLog from '../utils/debuglog'
 import { getResourcesPath, getUserDataPath } from '../utils/electronhelper'
-import {useAppStore, useUserStore} from '../store'
+import { ITokenInfo, useAppStore, useUserStore } from '../store'
 import PanDAL from '../pan/pandal'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import UserDAL from "../user/userdal"
 import message from "../utils/message"
+import { isEmpty } from 'lodash'
 
 declare type ProxyType = 'none' | 'http' | 'https' | 'socks4' | 'socks4a' | 'socks5' | 'socks5h'
 
@@ -17,18 +18,14 @@ export interface SettingState {
   uiImageMode: string
 
   uiVideoMode: string
-
   uiVideoPlayer: string
-
+  uiVideoPlayerExit: boolean
   uiVideoPlayerHistory: boolean
-
   uiVideoSubtitleMode: string
-
   uiVideoPlayerPath: string
+  uiAutoPlaycursorVideo: boolean
 
   uiAutoColorVideo: boolean
-
-  uiAutoPlaycursorVideo: boolean
 
   uiShowPanPath: boolean
 
@@ -174,11 +171,12 @@ const setting: SettingState = {
   uiImageMode: 'fill',
   uiVideoMode: 'web',
   uiVideoPlayer: 'web',
+  uiVideoPlayerExit: false,
   uiVideoPlayerHistory: false,
   uiVideoSubtitleMode: 'auto',
   uiVideoPlayerPath: '',
-  uiAutoColorVideo: true,
   uiAutoPlaycursorVideo: true,
+  uiAutoColorVideo: true,
   uiShowPanPath: true,
   uiShowPanMedia: false,
   uiExitOnClose: false,
@@ -264,11 +262,12 @@ function _loadSetting(val: any) {
   setting.uiImageMode = defaultValue(val.uiImageMode, ['fill', 'width', 'web'])
   setting.uiVideoMode = defaultValue(val.uiVideoMode, ['web', 'online'])
   setting.uiVideoPlayer = defaultValue(val.uiVideoPlayer, ['web', 'other'])
+  setting.uiVideoPlayerExit = defaultBool(val.uiVideoPlayerExit, false)
   setting.uiVideoPlayerHistory = defaultBool(val.uiVideoPlayerHistory, false)
   setting.uiVideoSubtitleMode = defaultValue(val.uiVideoSubtitleMode, ['close', 'auto', 'select'])
   setting.uiVideoPlayerPath = defaultString(val.uiVideoPlayerPath, '')
-  setting.uiAutoColorVideo = defaultBool(val.uiAutoColorVideo, true)
   setting.uiAutoPlaycursorVideo = defaultBool(val.uiAutoPlaycursorVideo, true)
+  setting.uiAutoColorVideo = defaultBool(val.uiAutoColorVideo, true)
   setting.uiShowPanPath = defaultBool(val.uiShowPanPath, true)
   setting.uiShowPanMedia = defaultBool(val.uiShowPanMedia, false)
   setting.uiExitOnClose = defaultBool(val.uiExitOnClose, false)
@@ -487,6 +486,9 @@ const useSettingStore = defineStore('setting', {
         open_api_access_token: token.open_api_access_token,
         refresh: true
       })
+      if (isEmpty(token.open_api_access_token)) {
+        token.open_api_expires_in = 0
+      }
       UserDAL.SaveUserToken(token)
     }
   }

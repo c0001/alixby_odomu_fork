@@ -13,6 +13,7 @@ import message from './message'
 import { modalArchive, modalArchivePassword, modalSelectPanDir } from './modal'
 import { humanTime, Sleep } from './format'
 import levenshtein from 'fast-levenshtein'
+import { SpawnOptions } from 'child_process'
 
 export async function menuOpenFile(file: IAliGetFileModel): Promise<void> {
   if (clickWait('menuOpenFile', 500)) return
@@ -112,13 +113,12 @@ async function Archive(drive_id: string, file_id: string, file_name: string, par
     message.error('在线预览失败 账号失效，操作取消')
     return
   }
-
+  message.loading('Loading...', 2)
   const info = await AliFile.ApiFileInfo(user_id, drive_id, file_id)
   if (info && typeof info == 'string') {
     message.error('在线预览失败 获取文件信息出错：' + info)
     return
   }
-  message.loading('Loading...', 2)
   let password = ''
   let resp = await AliArchive.ApiArchiveList(user_id, drive_id, file_id, info.domain_id, info.file_extension || '', password)
 
@@ -160,6 +160,7 @@ async function Video(token: ITokenInfo, drive_id: string, file_id: string, paren
     message.error('在线预览失败 无法预览违规文件')
     return
   }
+  message.loading('加载视频中...', 2)
   // 获取文件信息
   const info = await AliFile.ApiFileInfo(token.user_id, drive_id, file_id)
   if (info && typeof info == 'string') {
@@ -175,7 +176,6 @@ async function Video(token: ITokenInfo, drive_id: string, file_id: string, paren
       play_cursor = parseFloat(meta.play_cursor)
     }
   }
-  message.loading('加载视频中...', 2)
   const settingStore = useSettingStore()
   if (settingStore.uiAutoColorVideo && !dec) {
     AliFileCmd.ApiFileColorBatch(token.user_id, drive_id, 'c5b89b8', [file_id])
@@ -224,88 +224,70 @@ async function Video(token: ITokenInfo, drive_id: string, file_id: string, paren
       subTitleUrl = data.url
     }
   }
-  // 自定义播放器
-  let title = mode + '__' + name
+  // 构造播放参数
+  let title = mode + '_' + name
   let titleStr = CleanStringForCmd(title)
   let referer = token.open_api_enable ? 'https://open.aliyundrive.com/' : 'https://www.aliyundrive.com/'
-  let command = settingStore.uiVideoPlayerPath
   let playCursor = humanTime(play_cursor)
-  let args = ['"' + url + '"']
   if (url.indexOf('x-oss-additional-headers=referer') > 0) {
     message.error('用户token已过期，请点击头像里退出按钮后重新登录账号')
     return
   }
-  if (window.platform == 'win32') {
-    command = '"' + settingStore.uiVideoPlayerPath + '"'
-    args = ['"' + url + '"'] //win 双引号包裹
-    if (command.toLowerCase().indexOf('potplayer') > 0) {
-      args = [
-        '"' + url + '"',
-        '/new', '/autoplay',
-        '/referer="' + referer + '"',
-        '/title="' + title + '"'
-      ]
-      if (playCursor.length > 0 && useSettingStore().uiVideoPlayerHistory) {
-        args.push('/seek="' + playCursor + '"')
-      }
-      if (subTitleUrl.length > 0) {
-        args.push('/sub="' + subTitleUrl + '"')
-      }
-    } else if (command.toLowerCase().indexOf('mpv') > 0) {
-      args = [
-        '"' + url + '"',
-        '--force-window=immediate',
-        '--geometry=50%',
-        '--audio-pitch-correction=yes',
-        '--keep-open-pause=no',
-        '--alang=[en,eng,zh,chi,chs,sc,zho]',
-        '--slang=[zh,chi,chs,sc,zho,en,eng]',
-        '--referrer="' + referer + '"',
-        '--title="' + title + '"',
-        '--force-media-title="' + titleStr + '"'
-      ]
-      if (playCursor.length > 0 && useSettingStore().uiVideoPlayerHistory) {
-        args.push('--start="' + playCursor + '"')
-      }
-      if (subTitleUrl.length > 0) {
-        args.push('--sub-file="' + subTitleUrl + '"')
-      }
-    }
-  } else if (['darwin', 'linux'].includes(window.platform)) {
-    args = ['\'' + url + '\''] // 单引号包裹
-    if (window.platform == 'darwin') {
-      if (command.includes('mpv.app')) {
-        command = 'open -a \'' + command + '\'' + ' --args '
-      } else {
-        command = 'open -a \'' + command + '\''
-      }
-    }
-    if (command.toLowerCase().indexOf('mpv') > 0) {
-      args = [
-        '\'' + url + '\'',
-        '--force-window=immediate',
-        '--geometry=50%',
-        '--audio-pitch-correction=yes',
-        '--keep-open-pause=no',
-        '--alang=[en,eng,zh,chi,chs,sc,zho]',
-        '--slang=[zh,chi,chs,sc,zho,en,eng]',
-        '--referrer=\'' + referer + '\'',
-        '--title=\'' + title + '\'',
-        '--force-media-title=\'' + titleStr + '\''
-      ]
-      if (playCursor.length > 0 && useSettingStore().uiVideoPlayerHistory) {
-        args.push('--start=\'' + playCursor + '\'')
-      }
-      if (subTitleUrl.length > 0) {
-        args.push('--sub-file=\'' + subTitleUrl + '\'')
-      }
-    }
-  } else {
+  let command = settingStore.uiVideoPlayerPath
+  const isWindows = window.platform === 'win32'
+  const isMacOrLinux = ['darwin', 'linux'].includes(window.platform)
+  if (!isWindows && !isMacOrLinux) {
     message.error('不支持的系统，操作取消')
     return
   }
-  window.WebExecSync({ command, args }, (rdata: any) => {
-  })
+  const commandLowerCase = command.toLowerCase()
+  let playerArgs: any = { url, otherArgs: [] }
+  let options: SpawnOptions = {
+    // 跟随软件退出
+    detached: !settingStore.uiVideoPlayerExit
+  }
+  if (commandLowerCase.indexOf('potplayer') > 0) {
+    playerArgs = {
+      url: url,
+      otherArgs: [
+        '/new',
+        '/autoplay',
+        `/referer=${referer}`,
+        `/title=${title}`
+      ]
+    }
+    if (playCursor.length > 0 && useSettingStore().uiVideoPlayerHistory) {
+      playerArgs.otherArgs.push(`/seek=${playCursor}`)
+    }
+    if (subTitleUrl.length > 0) {
+      playerArgs.otherArgs.push(`/sub=${subTitleUrl}`)
+    }
+  }
+  if (commandLowerCase.indexOf('mpv') > 0) {
+    playerArgs = {
+      url: url,
+      otherArgs: [
+        '--force-window=immediate',
+        '--geometry=50%',
+        '--audio-pitch-correction=yes',
+        '--keep-open-pause=no',
+        '--alang=[en,eng,zh,chi,chs,sc,zho]',
+        '--slang=[zh,chi,chs,sc,zho,en,eng]',
+        '--input-ipc-server=alixby_mpv_ipc',
+        `--force-media-title=${titleStr}`,
+        `--referrer=${referer}`,
+        `--title=${title}`
+      ]
+    }
+    if (playCursor.length > 0 && useSettingStore().uiVideoPlayerHistory) {
+      playerArgs.otherArgs.push(`--start=${playCursor}`)
+    }
+    if (subTitleUrl.length > 0) {
+      playerArgs.otherArgs.push(`--sub-file=${subTitleUrl}`)
+    }
+  }
+  const args = [playerArgs.url, ...playerArgs.otherArgs]
+  window.WebSpawnSync({ command, args, options })
 }
 
 async function Image(drive_id: string, file_id: string, name: string): Promise<void> {

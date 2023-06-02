@@ -2,7 +2,6 @@
 import { useAppStore } from '../store'
 import { onBeforeUnmount, onMounted } from 'vue'
 import Artplayer from 'artplayer'
-import FlvJs from 'flv.js'
 import HlsJs from 'hls.js'
 import AliFile from '../aliapi/file'
 import AliDirFileList from '../aliapi/dirfilelist'
@@ -43,7 +42,6 @@ const options: Option = {
     playsInline: true
   },
   customType: {
-    flv: (video: HTMLMediaElement, url: string) => playFlv(video, url, ArtPlayerRef),
     m3u8: (video: HTMLMediaElement, url: string) => playM3U8(video, url, ArtPlayerRef)
   }
 }
@@ -84,24 +82,6 @@ const playM3U8 = (video: HTMLMediaElement, url: string, art: Artplayer) => {
     video.src = url
   } else {
     art.notice.show = 'Unsupported playback format: m3u8'
-  }
-}
-
-const playFlv = (video: HTMLMediaElement, url: string, art: Artplayer) => {
-  if (FlvJs.isSupported()) {
-    // @ts-ignore
-    if (art.flv) art.flv.destroy()
-    const flv = FlvJs.createPlayer(
-      { url: url, type: 'flv', withCredentials: true, cors: true },
-      { referrerPolicy: 'same-origin' }
-    )
-    flv.attachMediaElement(video)
-    flv.load()
-    // @ts-ignore
-    art.flv = flv
-    art.on('destroy', () => flv.destroy())
-  } else {
-    art.notice.show = 'Unsupported playback format: flv'
   }
 }
 
@@ -160,7 +140,7 @@ const createVideo = async (name: string) => {
   // 监听事件
   ArtPlayerRef.on('ready', async () => {
     // @ts-ignore
-    if (!ArtPlayerRef.hls && !ArtPlayerRef.flv) {
+    if (!ArtPlayerRef.hls) {
       await ArtPlayerRef.play()
       await getVideoCursor(ArtPlayerRef, pageVideo.play_cursor)
     }
@@ -342,7 +322,7 @@ const getPlayList = async (art: Artplayer, file_id?: string) => {
       for (let i = 0; i < fileList.length; i++) {
         playList.push({
           url: fileList[i].url,
-          html: fileList[i].html,
+          html: fileList[i].name,
           name: fileList[i].name,
           file_id: fileList[i].file_id,
           play_cursor: fileList[i].play_cursor,
@@ -400,12 +380,7 @@ const loadOnlineSub = async (art: Artplayer, item: any) => {
   if (data) {
     const blob = new Blob([data], { type: item.ext })
     onlineSubBlobUrl = URL.createObjectURL(blob)
-    await art.subtitle.switch(onlineSubBlobUrl, {
-      name: item.name,
-      type: item.ext,
-      encoding: 'utf-8',
-      escape: true
-    })
+    await art.subtitle.switch(onlineSubBlobUrl, { name: item.name, type: item.ext })
     return item.html
   } else {
     art.notice.show = `加载${item.name}字幕失败`
@@ -527,11 +502,7 @@ const getSubTitleList = async (art: Artplayer) => {
       if (art.subtitle.show) {
         if (!item.file_id) {
           art.notice.show = ''
-          art.subtitle.switch(item.url, {
-            name: item.name,
-            encoding: 'utf-8',
-            escape: true
-          })
+          await art.subtitle.switch(item.url, { name: item.name })
           return item.html
         } else {
           return await loadOnlineSub(art, item)

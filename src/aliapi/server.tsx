@@ -8,7 +8,7 @@ import { h } from 'vue'
 import { getAppNewPath, getResourcesPath, openExternal } from '../utils/electronhelper'
 import ShareDAL from '../share/share/ShareDAL'
 import DebugLog from '../utils/debuglog'
-import { writeFileSync, rmSync, existsSync, readFileSync } from 'fs'
+import { writeFile, rmSync, existsSync, readFileSync } from 'fs'
 import { execFile, SpawnOptions } from 'child_process'
 import path from 'path'
 
@@ -66,7 +66,6 @@ export default class ServerHttp {
       })
       .then((resp) => {
         if (resp.state == 'error' && resp.msg == '网络错误' && isfirst) {
-
           return ServerHttp.Sleep(2000).then(() => {
             return ServerHttp.Post(postData, false)
           })
@@ -87,7 +86,7 @@ export default class ServerHttp {
     )
   }
 
-  static configUrl = b64decode('aHR0cHM6Ly9naXRlZS5jb20vUGluZ0t1L2FsaXl1bnBhbi1jb25maWcvcmF3L2RldmVsb3AvY29uZmlnMy5qc29u')
+  static configUrl = b64decode('aHR0cHM6Ly9naXRlZS5jb20vb2RvbXUvYWxpeXVucGFuL3Jhdy9tYXN0ZXIvc2hhcmVTaXRlQ29uZmlnLmpzb24=')
   static updateUrl = b64decode('aHR0cHM6Ly9hcGkuZ2l0aHViLmNvbS9yZXBvcy9vZG9tdS9hbGl5dW5wYW4vcmVsZWFzZXMvbGF0ZXN0')
 
   static async CheckConfigUpgrade(): Promise<void> {
@@ -99,11 +98,11 @@ export default class ServerHttp {
       })
       .then(async (response: AxiosResponse) => {
         console.log('CheckConfigUpgrade', response)
-        if (response.data.SIP) {
-          const SIP = B64decode(response.data.SIP)
-          if (SIP.length > 0) ServerHttp.baseApi = SIP
-        }
-        if (response.data.SSList) {
+        // if (response.data.SIP) {
+        //   const SIP = B64decode(response.data.SIP)
+        //   if (SIP.length > 0) ServerHttp.baseApi = SIP
+        // }
+        if (response.data.SSList && response.data.SSList.length > 0) {
           const list: IShareSiteModel[] = []
           for (let i = 0, maxi = response.data.SSList.length; i < maxi; i++) {
             const item = response.data.SSList[i]
@@ -112,7 +111,7 @@ export default class ServerHttp {
           }
           ShareDAL.SaveShareSite(list)
         }
-        if (response.data.HELP) {
+        if (response.data.HELP && response.data.HELP.length > 0) {
           useServerStore().mSaveHelpUrl(response.data.HELP)
         }
       })
@@ -211,12 +210,13 @@ export default class ServerHttp {
                 }),
                 h(Button, {
                   type: 'outline',
-                  style: asarFileUrl.length == 0 && verUrl.length > 0 ? '' : 'display: none',
-                  innerHTML: process.platform !== 'linux' ? '全量更新' : '详情',
+                  style: asarFileUrl.length == 0 ? '' : 'display: none',
+                  innerHTML: platform !== 'linux' && verUrl.length > 0 ? '全量更新' : '详情',
                   onClick: async () => {
-                    if (verUrl.length > 0 && process.platform !== 'linux') {
+                    if (verUrl.length > 0 && platform !== 'linux') {
                       // 下载安装
-                      await this.AutoDownload(verUrl, html_url, updateData.name, false)
+                      const msgKey = 'download_' + Date.now().toString()
+                      await this.AutoDownload(verUrl, html_url, updateData.name, false, msgKey)
                     } else {
                       openExternal(html_url)
                     }
@@ -225,30 +225,37 @@ export default class ServerHttp {
                 }),
                 h(Button, {
                   type: 'primary',
-                  style: asarFileUrl.length > 0 && process.platform !== 'linux' ? '' : 'display: none',
+                  style: asarFileUrl.length > 0 && platform !== 'linux' ? '' : 'display: none',
                   innerHTML: '热更新',
                   onClick: async () => {
-                    if (asarFileUrl.length > 0 && process.platform !== 'linux') {
+                    if (asarFileUrl.length > 0 && platform !== 'linux') {
                       // 下载安装
-                      const flag = await this.AutoDownload(asarFileUrl, html_url, updateData.name, true)
+                      const msgKey = 'download_' + Date.now().toString()
+                      const flag = await this.AutoDownload(asarFileUrl, html_url, updateData.name, true, msgKey)
                       // 更新本地版本号
                       if (flag && tagName) {
-                        message.info('热更新完毕，自动重启应用中...', 5)
                         const localVersion = getResourcesPath('localVersion')
-                        localVersion && writeFileSync(localVersion, tagName, 'utf-8')
-                        await this.Sleep(2000)
-                        window.WebRelaunch()
+                        if (localVersion) {
+                          writeFile(localVersion, tagName, async (err)=> {
+                            if (err) {
+                              return false
+                            } else {
+                              message.info('热更新完毕，自动重启应用中...', 0, msgKey)
+                              await this.Sleep(2000)
+                              window.WebRelaunch()
+                              return true
+                            }
+                          })
+                        }
                       }
                     }
-                    return true
+                    return false
                   }
                 })
               ])
             })
-          } else if (remoteVer == configVer) {
+          } else if (remoteVer <= configVer) {
             message.info('已经是最新版 ' + tagName, 6)
-          } else if (remoteVer < configVer) {
-            message.info('您的本地版本 ' + Config.appVersion + ' 已高于服务器版本 ' + tagName, 6)
           }
         }
       })
@@ -300,13 +307,13 @@ export default class ServerHttp {
     return resultTextArr.join('<br>')
   }
 
-  static async AutoDownload(appNewUrl: string, html_url: string, file_name: string, hot: boolean): Promise<boolean> {
-    let resourcesPath = hot ? getAppNewPath() : getResourcesPath(file_name)
+  static async AutoDownload(appNewUrl: string, html_url: string, file_name: string, hot: boolean, msgKey: string): Promise<boolean> {
+    const resourcesPath = hot ? getAppNewPath() : getResourcesPath(file_name)
     if (!hot && existsSync(resourcesPath)) {
-      await this.autoInstallNewVersion(resourcesPath)
+      await this.autoInstallNewVersion(resourcesPath, msgKey)
       return true
     }
-    message.info('新版本正在后台下载中，请耐心等待。。。。', 2)
+    message.loading('新版本正在后台下载中，请耐心等待。。。', 0, msgKey)
     return axios
       .get(appNewUrl, {
         withCredentials: false,
@@ -319,33 +326,38 @@ export default class ServerHttp {
         }
       })
       .then(async (response: AxiosResponse) => {
-        writeFileSync(resourcesPath, Buffer.from(response.data))
+        writeFile(resourcesPath, Buffer.from(response.data), (err) => {
+          if(err) {
+            message.error('下载更新失败，请检查【Resources文件夹】是否有写入权限',5, msgKey)
+            return false
+          }
+        })
         if (!hot) {
           await this.Sleep(2000)
-          await this.autoInstallNewVersion(resourcesPath)
+          await this.autoInstallNewVersion(resourcesPath, msgKey)
         }
         return true
       })
       .catch(() => {
-        message.error('新版本下载失败，请前往github下载最新版本', 5)
+        message.error('新版本下载失败，请前往github下载最新版本', 5, msgKey)
         rmSync(resourcesPath, { force: true })
         openExternal(html_url)
         return false
       })
   }
 
-  static async autoInstallNewVersion(resourcesPath: string) {
+  static async autoInstallNewVersion(resourcesPath: string, msgKey: string) {
     // 自动安装
     const options: SpawnOptions = { shell: true, windowsVerbatimArguments: true }
-    execFile('\"' + resourcesPath + '\"', options, error => {
-      if (error) {
-        message.info('安装失败，请前往文件夹手动安装', 5)
-        const resources = getResourcesPath('')
-        shell.openPath(path.join(resources, '/'))
-      }
-    })
-    await this.Sleep(1000)
-    window.WebToElectron({ cmd: 'exit' })
+    const subProcess = await execFile(`${resourcesPath}`, options)
+    if (subProcess.pid && process.kill(subProcess.pid, 0)) {
+      await this.Sleep(1000)
+      window.WebToElectron({ cmd: 'exit' })
+    } else {
+      message.info('安装失败，请前往文件夹手动安装', 5, msgKey)
+      const resources = getResourcesPath('')
+      shell.openPath(path.join(resources, '/'))
+    }
   }
 }
 
