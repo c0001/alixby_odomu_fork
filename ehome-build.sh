@@ -66,8 +66,6 @@ declare use_http_proxy
 set -e
 [ -n "${_BASH_SRC_DIR}" ] && [ "${_BASH_SRC_DIR}" != '/' ]
 cd "${_BASH_SRC_DIR}/"
-git -C "${_BASH_SRC_DIR}" clean -xfd
-git -C "${_BASH_SRC_DIR}" reset --hard HEAD
 
 if [[ -n $http_proxy ]]; then
   use_http_proxy=$http_proxy
