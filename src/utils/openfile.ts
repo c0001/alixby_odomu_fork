@@ -273,7 +273,8 @@ async function Video(token: ITokenInfo, drive_id: string, file_id: string, paren
         '--keep-open-pause=no',
         '--alang=[en,eng,zh,chi,chs,sc,zho]',
         '--slang=[zh,chi,chs,sc,zho,en,eng]',
-        '--input-ipc-server=alixby_mpv_ipc',
+        // (entropy) FIXME: it's too irresponsibly to create file in any PWD?
+        // '--input-ipc-server=alixby_mpv_ipc',
         `--force-media-title=${titleStr}`,
         `--referrer=${referer}`,
         `--title=${title}`
