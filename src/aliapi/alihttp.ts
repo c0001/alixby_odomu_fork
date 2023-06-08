@@ -92,7 +92,6 @@ export default class AliHttp {
             'UserDeviceIllegality',
             'UserDeviceOffline',
             'DeviceSessionSignatureInvalid',
-            'TokenVerifyFailed',
             'AccessTokenInvalid',
             'AccessTokenExpired',
             'I400JD',
@@ -101,7 +100,6 @@ export default class AliHttp {
           // 自动刷新Token
           if (data.code == 'AccessTokenInvalid'
             || data.code == 'AccessTokenExpired'
-            || data.code == 'TokenVerifyFailed'
             || data.code == 'I400JD') {
             if (token) {
               if (window.IsMainPage) {
@@ -113,8 +111,7 @@ export default class AliHttp {
                     }
                     return { code: 403, header: '', body: 'NetError 账号需要重新登录' } as IUrlRespData
                   })
-                }
-                if (isOpenApi && token.open_api_enable) {
+                } else {
                   if (token.open_api_access_token.length > 0 && token.open_api_refresh_token.length === 0) {
                     return { code: 403, header: '', body: '刷新OpenApiToken失败,未填写【RefreshToken】' } as IUrlRespData
                   }
