@@ -1,11 +1,11 @@
 {
   "name": "alixby",
   "description": "阿里云盘小白羊",
-  "version": "3.23.61413",
+  "version": "3.23.62819",
   "main": "dist/electron/main/index.js",
   "author": {
     "name": "Odomu",
-    "email": "linla1205@163.com"
+    "email": "xxx@xx.com"
   },
   "license": "MIT",
   "scripts": {

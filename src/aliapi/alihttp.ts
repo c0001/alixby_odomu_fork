@@ -1,6 +1,7 @@
 import { ITokenInfo } from '../user/userstore'
 import UserDAL from '../user/userdal'
-import axios, { AxiosResponse } from 'axios'
+import { AxiosResponse } from 'axios'
+import axios from '../axios'
 import jschardet from 'jschardet'
 import AliUser from './user'
 import message from '../utils/message'
@@ -48,7 +49,6 @@ function Sleep(msTime: number): Promise<{ success: true; time: number }> {
 
 const IsDebugHttp = false
 export default class AliHttp {
-  static LimitMax = 100
   static baseApi = 'https://api.aliyundrive.com/'
   static baseOpenApi = 'https://openapi.aliyundrive.com/'
   
@@ -60,7 +60,7 @@ export default class AliHttp {
     if (code >= 200 && code <= 300) return true
     if (code == 400) return true
     // if (code == 401) return true
-    if (code >= 402 && code <= 429) return true
+    if (code >= 402 && code <= 428) return true
     if (code == 404) return true
     if (code == 409) return true
     return false
@@ -102,29 +102,27 @@ export default class AliHttp {
             || data.code == 'AccessTokenExpired'
             || data.code == 'I400JD') {
             if (token) {
-              if (window.IsMainPage) {
-                const isOpenApi = config.url.includes('adrive/v1.0')
-                if (!isOpenApi) {
-                  return await AliUser.ApiTokenRefreshAccount(token, true).then((isLogin: boolean) => {
-                    if (isLogin) {
-                      return { code: 401, header: '', body: '' } as IUrlRespData
-                    }
-                    return { code: 403, header: '', body: 'NetError 账号需要重新登录' } as IUrlRespData
-                  })
-                } else {
-                  if (token.open_api_access_token.length > 0 && token.open_api_refresh_token.length === 0) {
-                    return { code: 403, header: '', body: '刷新OpenApiToken失败,未填写【RefreshToken】' } as IUrlRespData
+              const isOpenApi = config.url.includes('adrive/v1.0')
+              if (!isOpenApi) {
+                return await AliUser.ApiTokenRefreshAccount(token, true, true).then((isLogin: boolean) => {
+                  if (isLogin) {
+                    return { code: 401, header: '', body: '' } as IUrlRespData
                   }
-                  if (token.open_api_access_token.length === 0 && token.open_api_refresh_token.length === 0) {
-                    return { code: 403, header: '', body: 'OpenApi启用失败,请检查配置' } as IUrlRespData
-                  }
-                  return await AliUser.OpenApiTokenRefreshAccount(token, true, true).then((flag: boolean) => {
-                    if (flag) {
-                      return { code: 401, header: '', body: '' } as IUrlRespData
-                    }
-                    return { code: 403, header: '', body: '刷新OpenApiToken失败，请检查配置' } as IUrlRespData
-                  })
+                  return { code: 403, header: '', body: 'NetError 账号需要重新登录' } as IUrlRespData
+                })
+              } else {
+                if (token.open_api_access_token.length > 0 && token.open_api_refresh_token.length === 0) {
+                  return { code: 403, header: '', body: '刷新OpenApiToken失败,未填写【RefreshToken】' } as IUrlRespData
                 }
+                if (token.open_api_access_token.length === 0 && token.open_api_refresh_token.length === 0) {
+                  return { code: 403, header: '', body: 'OpenApi启用失败,请检查配置' } as IUrlRespData
+                }
+                return await AliUser.OpenApiTokenRefreshAccount(token, true, true).then((flag: boolean) => {
+                  if (flag) {
+                    return { code: 401, header: '', body: '' } as IUrlRespData
+                  }
+                  return { code: 403, header: '', body: '刷新OpenApiToken失败，请检查配置' } as IUrlRespData
+                })
               }
             } else {
               return { code: 402, header: '', body: 'NetError 账号需要重新登录' } as IUrlRespData
