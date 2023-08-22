@@ -1,4 +1,4 @@
-import { ITokenInfo, useFootStore } from '../store'
+import { useFootStore } from '../store'
 import UserDAL from '../user/userdal'
 import DebugLog from '../utils/debuglog'
 import { Sleep } from '../utils/format'
@@ -10,37 +10,43 @@ import { IAliBatchResult } from './models'
 import { SHA256 } from 'crypto-js'
 import { ecdsaSign, publicKeyCreate } from 'secp256k1'
 
-export declare type Drive = 'pan' | 'pic' | 'safe'
-
-
-export function GetDriveID(user_id: string, drive: Drive): string {
+export function GetDriveID(user_id: string, drive: string): string {
   const token = UserDAL.GetUserToken(user_id)
   if (token) {
-    switch (drive) {
-      case 'pan':
-        return token.default_drive_id
-      case 'pic':
-        return token.pic_drive_id
-      case 'safe':
-        return token.default_sbox_drive_id
+    if (drive.includes('backup')) {
+      return token.default_drive_id
+    } else if (drive.includes('resource')) {
+      return token.resource_drive_id
+    } else if (drive.includes('pic')) {
+      return token.pic_drive_id
+    } else if (drive.includes('safe')) {
+      return token.default_sbox_drive_id
+    } else {
+      return ''
     }
   }
   return ''
 }
 
-
-export function GetDriveID2(token: ITokenInfo, driveName: string): string {
+export function GetDriveType(user_id: string, drive_id: string): any {
+  const token = UserDAL.GetUserToken(user_id)
   if (token) {
-    switch (driveName) {
-      case 'pan':
-        return token.default_drive_id
-      case 'pic':
-        return token.pic_drive_id
-      case 'safe':
-        return token.default_sbox_drive_id
+    switch (drive_id) {
+      case token.default_drive_id:
+        return { title: '备份盘', name: 'backup', key: 'backup_root' }
+      case token.backup_drive_id:
+        return { title: '备份盘', name: 'backup', key: 'backup_root' }
+      case token.resource_drive_id:
+        return { title: '资源盘', name: 'resource', key: 'resource_root' }
+      case token.pic_drive_id:
+        return { title: '相册', name: 'pic', key: 'pic_root' }
+      case token.default_sbox_drive_id:
+        return { title: '安全盘', name: 'safe', key: 'safe_root' }
+      default:
+        return { title: '备份盘', name: 'backup', key: 'backup_root' }
     }
   }
-  return driveName
+  return { title: '', key: '' }
 }
 
 export function GetSignature(nonce: number, user_id: string, deviceId: string) {
@@ -94,12 +100,16 @@ async function _ApiBatch(postData: string, user_id: string, share_token: string,
       } else {
         const respi = responses[i]
         const logmsg = (respi.body.code || '') + ' ' + (respi.body.message || '')
-        if (logmsg.includes('File under sync control') == false) DebugLog.mSaveDanger(logmsg)
-        if (respi.body && respi.body.code) result.error.push({ id: respi.body.id || respi.id, code: respi.body.code, message: respi.body.message })
+        if (!logmsg.includes('File under sync control')) DebugLog.mSaveDanger(logmsg)
+        if (respi.body && respi.body.code) result.error.push({
+          id: respi.body.id || respi.id,
+          code: respi.body.code,
+          message: respi.body.message
+        })
       }
     }
-  } else {
-    DebugLog.mSaveWarning('_ApiBatch err=' + (resp.code || ''))
+  } else if (!AliHttp.HttpCodeBreak(resp.code)) {
+    DebugLog.mSaveWarning('_ApiBatch err=' + (resp.code || ''), resp.body)
   }
 }
 
@@ -203,7 +213,13 @@ export function ApiBatchMaker(url: string, idList: string[], bodymake: (file_id:
     const id = idList[i]
     if (batchSet.has(id)) continue
     batchSet.add(id)
-    batchList.push(JSON.stringify({ body: bodymake(id), headers: { 'Content-Type': 'application/json' }, id: id, method: 'POST', url }))
+    batchList.push(JSON.stringify({
+      body: bodymake(id),
+      headers: { 'Content-Type': 'application/json' },
+      id: id,
+      method: 'POST',
+      url
+    }))
   }
   batchSet.clear()
   return batchList
@@ -264,8 +280,8 @@ export async function ApiGetAsyncTask(user_id: string, async_task_id: string): P
       message.warning('操作部分成功 ' + resp.body.message?.replace('ErrQuotaExhausted', '网盘空间已满') || '', 5)
       return 'error'
     }
-  } else {
-    DebugLog.mSaveWarning('ApiGetAsyncTask err=' + (resp.code || ''))
+  } else if (!AliHttp.HttpCodeBreak(resp.code)) {
+    DebugLog.mSaveWarning('ApiGetAsyncTask err=' + (resp.code || ''), resp.body)
   }
   return 'error'
 }
@@ -284,8 +300,8 @@ export async function ApiGetAsyncTaskUnzip(user_id: string, drive_id: string, fi
       message.warning('操作部分成功 ' + resp.body.message?.replace('ErrQuotaExhausted', '网盘空间已满') || '', 5)
       return 'error'
     }
-  } else {
-    DebugLog.mSaveWarning('ApiGetAsyncTaskUnzip err=' + (resp.code || ''))
+  } else if (!AliHttp.HttpCodeBreak(resp.code)) {
+    DebugLog.mSaveWarning('ApiGetAsyncTaskUnzip err=' + (resp.code || ''), resp.body)
   }
   return 'error'
 }

@@ -23,7 +23,6 @@ import ArchivePasswordModal from '../pan/topbtns/ArchivePasswordModal.vue'
 import AlphaModal from '../pan/topbtns/AlphaModal.vue'
 import UploadModal from '../pan/topbtns/UploadModal.vue'
 import DownloadModal from '../pan/topbtns/DownloadModal.vue'
-import SelectSubTitleModal from '../pan/topbtns/SelectSubTitleModal.vue'
 
 export default defineComponent({
   components: {
@@ -66,16 +65,22 @@ export default defineComponent({
                     :parentdirid="modalStore.modalData.parentdirid || ''" :callback='modalStore.modalData.callback' />
   <CreatNewShareLinkModal :visible="modalStore.modalName == 'creatshare'"
                           :sharetype="modalStore.modalData.sharetype || ''"
+                          :driveType="modalStore.modalData.driveType || ''"
                           :filelist='modalStore.modalData.filelist || []' />
 
-  <DaoRuShareLinkModal :visible="modalStore.modalName == 'daorushare'" />
+  <DaoRuShareLinkModal :visible="modalStore.modalName == 'daorushare'"
+                       :shareUrl="modalStore.modalData.shareUrl || ''"
+                       :sharePwd="modalStore.modalData.sharePwd || ''" />
   <DaoRuShareLinkMultiModal :visible="modalStore.modalName == 'daorusharemulti'" />
 
   <RenameModal :visible="modalStore.modalName == 'rename'" :istree='modalStore.modalData.istree || false' />
   <RenameMultiModal :visible="modalStore.modalName == 'renamemulti'" :istree='modalStore.modalData.istree || false' />
-  <ShuXingModal :visible="modalStore.modalName == 'shuxing'" :istree='modalStore.modalData.istree || false' />
-  <ShuXingMultiModal :visible="modalStore.modalName == 'shuxingmulti'" :istree='modalStore.modalData.istree || false' />
-  <SearchPanModal :visible="modalStore.modalName == 'searchpan'" />
+  <ShuXingModal :visible="modalStore.modalName == 'shuxing'" :istree='modalStore.modalData.istree || false'
+                :inputsearchType="modalStore.modalData.inputsearchType || ''" />
+  <ShuXingMultiModal :visible="modalStore.modalName == 'shuxingmulti'" :istree='modalStore.modalData.istree || false'
+                     :inputsearchType="modalStore.modalData.inputsearchType || ''" />
+  <SearchPanModal :visible="modalStore.modalName == 'searchpan'"
+                  :inputsearchType="modalStore.modalData.inputsearchType || ''" />
 
   <DLNAPlayerModal :visible="modalStore.modalName == 'dlna'" />
   <M3U8DownloadModal :visible="modalStore.modalName == 'm3u8download'" />
@@ -117,8 +122,8 @@ export default defineComponent({
   <SelectPanDirModal :visible="modalStore.modalName == 'selectpandir'"
                      :selecttype="modalStore.modalData.selecttype || ''"
                      :selectid="modalStore.modalData.selectid || ''"
-                     :category="modalStore.modalData.category"
-                     :extFilter="modalStore.modalData.extFilter"
+                     :category='modalStore.modalData.category'
+                     :extFilter='modalStore.modalData.extFilter'
                      :callback='modalStore.modalData.callback' />
 </template>
 <style>

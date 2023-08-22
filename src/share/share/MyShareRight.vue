@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { IAliShareItem } from '../../aliapi/alimodels'
-import { useAppStore, useKeyboardStore, KeyboardState, useMyShareStore, useUserStore, useWinStore } from '../../store'
+import { KeyboardState, useAppStore, useKeyboardStore, useMyShareStore, useUserStore, useWinStore } from '../../store'
 import { humanCount } from '../../utils/format'
 import ShareDAL from './ShareDAL'
-import { onShowRightMenu, onHideRightMenuScroll, TestCtrl, TestKey, TestKeyboardScroll, TestKeyboardSelect } from '../../utils/keyboardhelper'
+import {
+  onHideRightMenuScroll,
+  onShowRightMenu,
+  TestCtrl,
+  TestKey,
+  TestKeyboardScroll,
+  TestKeyboardSelect
+} from '../../utils/keyboardhelper'
 import { copyToClipboard, openExternal } from '../../utils/electronhelper'
 import message from '../../utils/message'
 import AliShare from '../../aliapi/share'
@@ -213,19 +220,19 @@ const handleRightClick = (e: { event: MouseEvent; node: any }) => {
     <div style="flex-grow: 1"></div>
     <div class="cell tiquma">提取码</div>
     <div :class="'cell sharestate order ' + (myshareStore.ListOrderKey == 'state' ? 'active' : '')" @click="handleOrder('state')">
-      状态
+      有效期
       <i class="iconfont iconxia" />
     </div>
     <div :class="'cell count order ' + (myshareStore.ListOrderKey == 'preview' ? 'active' : '')" @click="handleOrder('preview')">
-      浏览
+      浏览数
       <i class="iconfont iconxia" />
     </div>
     <div :class="'cell count order ' + (myshareStore.ListOrderKey == 'download' ? 'active' : '')" @click="handleOrder('download')">
-      下载
+      下载数
       <i class="iconfont iconxia" />
     </div>
     <div :class="'cell count order ' + (myshareStore.ListOrderKey == 'save' ? 'active' : '')" @click="handleOrder('save')">
-      转存
+      转存数
       <i class="iconfont iconxia" />
     </div>
     <div :class="'cell sharetime order ' + (myshareStore.ListOrderKey == 'time' ? 'active' : '')" @click="handleOrder('time')">
@@ -315,7 +322,7 @@ const handleRightClick = (e: { event: MouseEvent; node: any }) => {
 
 <style>
 .cellcount {
-  align-items: 'center';
+  align-items: center;
   margin-right: 16px;
 }
 .cellcount .arco-badge .arco-badge-status-text {
@@ -345,8 +352,12 @@ body[arco-theme='dark'] .toppanarea .cell {
   font-size: 12px;
 }
 .cell.count {
-  width: 60px;
+  width: 70px;
   font-size: 12px;
+  line-height: 14px;
+  text-align: right;
+  word-wrap: break-word;
+  word-break: keep-all;
 }
 .cell.sharetime {
   width: 80px;

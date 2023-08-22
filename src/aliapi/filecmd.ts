@@ -10,6 +10,7 @@ export default class AliFileCmd {
   static async ApiCreatNewForder(user_id: string, drive_id: string, parent_file_id: string, creatDirName: string): Promise<{ file_id: string; error: string }> {
     const result = { file_id: '', error: '新建文件夹失败' }
     if (!user_id || !drive_id || !parent_file_id) return result
+    if (parent_file_id.includes('root')) parent_file_id = 'root'
     const url = 'adrive/v2/file/createWithFolders'
     const postData = JSON.stringify({
       drive_id: drive_id,
@@ -22,8 +23,8 @@ export default class AliFileCmd {
     if (AliHttp.IsSuccess(resp.code)) {
       const file_id = resp.body.file_id as string | undefined
       if (file_id) return { file_id, error: '' }
-    } else {
-      DebugLog.mSaveWarning('ApiCreatNewForder err=' + parent_file_id + ' ' + (resp.code || ''))
+    } else if (!AliHttp.HttpCodeBreak(resp.code)) {
+      DebugLog.mSaveWarning('ApiCreatNewForder err=' + parent_file_id + ' ' + (resp.code || ''), resp.body)
     }
     if (resp.body?.code == 'QuotaExhausted.Drive') return { file_id: '', error: '网盘空间已满,无法创建' }
     if (resp.body?.code) return { file_id: '', error: resp.body?.code }
@@ -88,7 +89,7 @@ export default class AliFileCmd {
     const batchList = ApiBatchMaker('/file/update', file_idList, (file_id: string) => {
       return { drive_id: drive_id, file_id: file_id, description: color }
     })
-    return ApiBatchSuccess(color == '' ? '清除文件标记' : color == 'c5b89b8' ? '' : '标记文件', batchList, user_id, '')
+    return ApiBatchSuccess(color == '' ? '清除文件标记' : color == 'ce74c3c' ? '' : '标记文件', batchList, user_id, '')
   }
 
   
@@ -123,8 +124,8 @@ export default class AliFileCmd {
     } else if (resp.code && resp.code == 403) {
       if (resp.body?.code == 'UserNotVip') message.error('文件恢复功能需要开通阿里云盘会员')
       else message.error(resp.body?.code || '拒绝访问')
-    } else {
-      DebugLog.mSaveWarning('ApiRecoverBatch err=' + (resp.code || ''))
+    } else if (!AliHttp.HttpCodeBreak(resp.code)) {
+      DebugLog.mSaveWarning('ApiRecoverBatch err=' + (resp.code || ''), resp.body)
       message.error('操作失败')
     }
     return successList
@@ -132,15 +133,28 @@ export default class AliFileCmd {
 
   
   static async ApiMoveBatch(user_id: string, drive_id: string, file_idList: string[], to_drive_id: string, to_parent_file_id: string): Promise<string[]> {
+    if (to_parent_file_id.includes('root')) to_parent_file_id = 'root'
     const batchList = ApiBatchMaker('/file/move', file_idList, (file_id: string) => {
-      if (drive_id == to_drive_id) return { drive_id: drive_id, file_id: file_id, to_parent_file_id: to_parent_file_id, auto_rename: true }
-      else return { drive_id: drive_id, file_id: file_id, to_drive_id: to_drive_id, to_parent_file_id: to_parent_file_id, auto_rename: true }
+      if (drive_id == to_drive_id) return {
+        drive_id: drive_id,
+        file_id: file_id,
+        to_parent_file_id: to_parent_file_id,
+        auto_rename: true
+      }
+      else return {
+        drive_id: drive_id,
+        file_id: file_id,
+        to_drive_id: to_drive_id,
+        to_parent_file_id: to_parent_file_id,
+        auto_rename: true
+      }
     })
     return ApiBatchSuccess(file_idList.length <= 1 ? '移动' : '批量移动', batchList, user_id, '')
   }
 
   
   static async ApiCopyBatch(user_id: string, drive_id: string, file_idList: string[], to_drive_id: string, to_parent_file_id: string): Promise<string[]> {
+    if (to_parent_file_id.includes('root')) to_parent_file_id = 'root'
     const batchList = ApiBatchMaker('/file/copy', file_idList, (file_id: string) => {
       if (drive_id == to_drive_id) return { drive_id: drive_id, file_id: file_id, to_parent_file_id: to_parent_file_id, auto_rename: true }
       else return { drive_id: drive_id, file_id: file_id, to_drive_id: to_drive_id, to_parent_file_id: to_parent_file_id, auto_rename: true }

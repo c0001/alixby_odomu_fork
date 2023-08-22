@@ -109,8 +109,8 @@ async function ApiBatchDirFileList(user_id: string, drive_id: string, dirList: I
   let postData = '{"requests":['
   for (let i = 0, maxi = dirList.length; i < maxi; i++) {
     if (i > 0) postData = postData + ','
-    
-    let query = 'parent_file_id="' + dirList[i].dirID + '"'
+    let id = dirList[i].dirID.includes('root') ? 'root' : dirList[i].dirID
+    let query = 'parent_file_id="' + id + '"'
     if (scanType == 'size10') query += ' and size > 10485760'
     else if (scanType == 'size100') query += ' and size > 104857600'
     else if (scanType == 'size1000') query += ' and size > 1048576000'
@@ -126,7 +126,7 @@ async function ApiBatchDirFileList(user_id: string, drive_id: string, dirList: I
         fields: 'thumbnail'
       },
       headers: { 'Content-Type': 'application/json' },
-      id: dirList[i].dirID,
+      id: id,
       method: 'POST',
       url: '/file/search'
     }
@@ -146,26 +146,26 @@ async function ApiBatchDirFileList(user_id: string, drive_id: string, dirList: I
           const respi = responses[j]
           const id = respi.id || ''
           for (let i = 0, maxi = dirList.length; i < maxi; i++) {
-            if (dirList[i].dirID == id) {
+            if (dirList[i].dirID.includes(id)) {
               const dir = dirList[i]
               const items = respi.body.items
               dir.next_marker = respi.body.next_marker
               for (let i = 0, maxi = items.length; i < maxi; i++) {
                 if (dir.itemsKey.has(items[i].file_id)) continue
                 const add = AliDirFileList.getFileInfo(items[i], '')
-                add.namesearch = items[i].content_hash 
+                add.namesearch = items[i].content_hash
                 dir.items.push(add)
                 dir.itemsKey.add(add.file_id)
               }
-              if (dir.items.length >= 3000) dir.next_marker = '' 
+              if (dir.items.length >= 3000) dir.next_marker = ''
               break
             }
           }
         }
       }
       return true
-    } else {
-      DebugLog.mSaveWarning('SSApiBatchDirFileList err=' + (resp.code || ''))
+    } else if (!AliHttp.HttpCodeBreak(resp.code)) {
+      DebugLog.mSaveWarning('SSApiBatchDirFileList err=' + (resp.code || ''), resp.body)
     }
   } catch (err: any) {
     DebugLog.mSaveWarning('ApiBatchDirFileList', err)
@@ -199,16 +199,15 @@ async function ApiWalkDirFileList(user_id: string, drive_id: string, file_id: st
         next_marker = resp.body.next_marker
         items = items.concat(resp.body.items)
       } else if (resp.code == 404) {
-        
         next_marker = ''
         break
       } else if (resp.body && resp.body.code) {
         items.length = 0
-        next_marker = resp.body.code 
+        next_marker = resp.body.code
         message.warning('列出文件出错 ' + resp.body.code, 2)
         return false
-      } else {
-        DebugLog.mSaveWarning('ApiWalkDirFileList err=' + (resp.code || ''))
+      } else if (!AliHttp.HttpCodeBreak(resp.code)) {
+        DebugLog.mSaveWarning('ApiWalkDirFileList err=' + (resp.code || ''), resp.body)
       }
     } catch (err: any) {
       DebugLog.mSaveDanger('ApiWalkDirFileList' + file_id, err)
@@ -228,7 +227,6 @@ export function DeleteFromSameData(PanData: IScanDriverModel, idList: string[]) 
     for (let j = 0, maxj = children.length; j < maxj; j++) {
       const key = children[j].file_id
       if (idList.includes(key)) {
-        
         idList = idList.filter((t) => t != key)
       } else {
         saveList.push(children[j])

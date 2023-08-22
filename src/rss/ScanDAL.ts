@@ -44,11 +44,11 @@ export interface ScanTreeDataModel {
 
 export interface IScanDriverModel {
   drive_id: string
-  
+
   DirMap: Map<string, IAliGetDirModel>
-  
+
   DirChildrenMap: Map<string, IAliGetDirModel[]>
-  
+
   EnmptyDirMap: Map<string, string>
   WeiGuiDirMap: Map<string, string>
   NoShareDirMap: Map<string, string>
@@ -68,6 +68,7 @@ export function NewScanDriver(drive_id: string): IScanDriverModel {
     CleanDirMap: new Map<string, string>()
   }
 }
+
 export function ResetScanDriver(data: IScanDriverModel) {
   data.drive_id = ''
   data.DirMap = new Map<string, IAliGetDirModel>()
@@ -78,66 +79,75 @@ export function ResetScanDriver(data: IScanDriverModel) {
   data.SameDirMap = new Map<string, FileData[]>()
 }
 
-function GetScanDriver(drive_id: string, children: IAliGetDirModel[]): IScanDriverModel {
+function GetScanDriver(drive_id: string, drive_type: string, drive_name: string, children: IAliGetDirModel[]): IScanDriverModel {
   const ts = Date.now()
   const driverData = NewScanDriver(drive_id)
-  
-  const root: IAliGetDirModel = { __v_skip: true, drive_id, file_id: 'root', parent_file_id: '', name: '根目录', namesearch: '', size: 0, time: 0, description: '' }
+
+  const root: IAliGetDirModel = {
+    __v_skip: true,
+    drive_id,
+    file_id: drive_type + '_root',
+    parent_file_id: '',
+    name: drive_name,
+    namesearch: '',
+    size: 0,
+    time: 0,
+    description: ''
+  }
   driverData.DirMap.set(root.file_id, root)
   const childrenMap = new Map<string, IAliGetDirModel[]>()
   childrenMap.set(root.file_id, [])
 
   try {
     let parent_file_id: string = ''
-    let parentDir: IAliGetDirModel[] = [] 
+    let parentDir: IAliGetDirModel[] = []
     let item: IAliGetDirModel
-    
     for (let i = 0, maxi = children.length; i < maxi; i++) {
       item = children[i]
-      item.description = '' 
+      item.description = ''
       driverData.DirMap.set(item.file_id, item)
       if (parent_file_id != item.parent_file_id) {
         if (childrenMap.has(item.parent_file_id)) {
-          parentDir = childrenMap.get(item.parent_file_id)! 
+          parentDir = childrenMap.get(item.parent_file_id)!
         } else {
-          parentDir = [] 
-          childrenMap.set(item.parent_file_id, parentDir) 
+          parentDir = []
+          childrenMap.set(item.parent_file_id, parentDir)
         }
         parent_file_id = item.parent_file_id
       }
       parentDir.push(item)
     }
-  } catch {}
+  } catch {
+  }
   driverData.DirChildrenMap = childrenMap
   console.log('SaveAllDirLite time=', Date.now() - ts)
   return driverData
 }
 
 
-export function LoadScanDir(user_id: string, drive_id: string, totalDirCount: Ref<number>, processing: Ref<number>, scanPanData: IScanDriverModel) {
+export function LoadScanDir(user_id: string, drive_id: string, drive_type: string, drive_name: string, totalDirCount: Ref<number>, processing: Ref<number>, scanPanData: IScanDriverModel) {
   scanPanData.drive_id = drive_id
   scanPanData.DirMap = new Map<string, IAliGetDirModel>()
   scanPanData.DirChildrenMap = new Map<string, IAliGetDirModel[]>()
 
-  return GetAllDir(user_id, drive_id).then((dirList: IAliGetDirModel[]) => {
+  return GetAllDir(user_id, drive_id, drive_type).then((dirList: IAliGetDirModel[]) => {
     totalDirCount.value = dirList.length
     processing.value = 50
-    const PanData = GetScanDriver(drive_id, dirList)
-    Object.assign(scanPanData, PanData) 
+    const PanData = GetScanDriver(drive_id, drive_type, drive_name, dirList)
+    Object.assign(scanPanData, PanData)
   })
 }
 
-async function GetAllDir(user_id: string, drive_id: string) {
+async function GetAllDir(user_id: string, drive_id: string, drive_type: string) {
   const data = await DB.getValueObject('AllDir_' + drive_id)
   if (data) {
     const dt = await DB.getValueNumber('AllDir_' + drive_id)
     if (Date.now() - dt < 1000 * 60 * 60) {
-      
       return data as IAliGetDirModel[]
     }
   }
 
-  return AliDirList.ApiFastAllDirListByPID(user_id, drive_id)
+  return AliDirList.ApiFastAllDirListByPID(user_id, drive_id, drive_type + '_root')
     .then((data) => {
       if (!data.next_marker) {
         // return data.items
@@ -156,10 +166,8 @@ async function GetAllDir(user_id: string, drive_id: string) {
             description: ''
           } as IAliGetDirModel)
         }
-
-        DB.saveValueObject('AllDir_' + drive_id, data.items) 
-        DB.saveValueNumber('AllDir_' + drive_id, Date.now()) 
-
+        DB.saveValueObject('AllDir_' + drive_id, data.items)
+        DB.saveValueNumber('AllDir_' + drive_id, Date.now())
         return list
       } else {
         DebugLog.mSaveWarning('列出文件夹失败file_id=all' + ' next_marker=' + data.next_marker)
@@ -193,10 +201,10 @@ export function TreeSelectAll(checkedKeys: Ref<string[]>, checkedKeysBak: string
 
 export function TreeSelectOne(selectedKeys: string[], checkedKeys: Ref<string[]>) {
   if (selectedKeys.length > 0) {
-    const key = selectedKeys[0] 
+    const key = selectedKeys[0]
     const checkedkeys = checkedKeys.value
     if (checkedkeys.includes(key)) {
-      checkedKeys.value = checkedkeys.filter(function (x) {
+      checkedKeys.value = checkedkeys.filter(function(x) {
         return x != key
       })
     } else {
@@ -207,11 +215,11 @@ export function TreeSelectOne(selectedKeys: string[], checkedKeys: Ref<string[]>
 
 export function TreeCheckFileChild(node: TreeNodeData, checkedKeys: Ref<string[]>) {
   if (node.icon != foldericonfn) {
-    TreeSelectOne([node.key], checkedKeys) 
+    TreeSelectOne([node.key], checkedKeys)
     return
   }
   const keys: string[] = []
-  
+
   GetFileChildNode(keys, node)
   if (keys.length == 0) return
   let isall = true
@@ -222,14 +230,14 @@ export function TreeCheckFileChild(node: TreeNodeData, checkedKeys: Ref<string[]
       break
     }
   }
-  
+
   if (isall) {
-    
+
     for (let i = 0, maxi = keys.length; i < maxi; i++) {
       checkedkeysSet.delete(keys[i])
     }
   } else {
-    
+
     for (let i = 0, maxi = keys.length; i < maxi; i++) {
       checkedkeysSet.add(keys[i])
     }
@@ -241,12 +249,12 @@ function GetFileChildNode(keys: string[], node: TreeNodeData) {
   if (node.children && node.children.length > 0) {
     for (let i = 0, maxi = node.children.length; i < maxi; i++) {
       if (node.children[i].icon != foldericonfn) {
-        keys.push(node.children[i].key) 
+        keys.push(node.children[i].key)
       } else {
-        GetFileChildNode(keys, node.children[i]) 
+        GetFileChildNode(keys, node.children[i])
       }
     }
   } else if (node.icon != foldericonfn) {
-    keys.push(node.key) 
+    keys.push(node.key)
   }
 }
