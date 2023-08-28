@@ -9,7 +9,7 @@ import { ICompilationList, IDownloadUrl, IOfficePreViewUrl, IVideoPreviewUrl, IV
 import { GetDriveType } from './utils'
 
 export default class AliFile {
-  
+
   static async ApiFileInfo(user_id: string, drive_id: string, file_id: string): Promise<any | undefined> {
     if (!user_id || !drive_id || !file_id) return undefined
     let url = ''
@@ -38,7 +38,15 @@ export default class AliFile {
     const resp = await AliHttp.Post(url, postData, user_id, '', true)
 
     if (AliHttp.IsSuccess(resp.code)) {
-      return resp.body as IAliFileItem
+      let fileInfo = resp.body as IAliFileItem
+      if (fileInfo.name.toLowerCase() === 'default') {
+        fileInfo.name = '备份盘'
+      } else if (fileInfo.name.toLowerCase() === 'resource') {
+        fileInfo.name = '资源盘'
+      } else if (fileInfo.name.toLowerCase() === 'alibum') {
+        fileInfo.name = '相册'
+      }
+      return fileInfo
     } else if (AliHttp.HttpCodeBreak(resp.code)) {
       return (resp.body.message || resp.body) as string
     } else if (!AliHttp.HttpCodeBreak(resp.code)) {
@@ -47,7 +55,7 @@ export default class AliFile {
     return '网络错误'
   }
 
-  
+
   static async ApiFileInfoByPath(user_id: string, drive_id: string, file_path: string): Promise<IAliFileItem | undefined> {
     if (!user_id || !drive_id || !file_path) return undefined
     if (!file_path.startsWith('/')) file_path = '/' + file_path
@@ -119,7 +127,14 @@ export default class AliFile {
     } else {
       url = 'v2/file/get_video_preview_play_info'
     }
-    const postData = { drive_id: drive_id, file_id: file_id, category: 'live_transcoding', template_id: '', get_subtitle_info: true, url_expire_sec: 14400 }
+    const postData = {
+      drive_id: drive_id,
+      file_id: file_id,
+      category: 'live_transcoding',
+      template_id: '',
+      get_subtitle_info: true,
+      url_expire_sec: 14400
+    }
     const resp = await AliHttp.Post(url, postData, user_id, '', true)
 
     if (resp.body.code == 'VideoPreviewWaitAndRetry') {
@@ -212,9 +227,9 @@ export default class AliFile {
 
   static async ApiAudioPreviewUrl(user_id: string, drive_id: string, file_id: string): Promise<IDownloadUrl | undefined> {
     if (!user_id || !drive_id || !file_id) return undefined
-    
+
     const url = 'v2/file/get_audio_play_info'
-    
+
     const postData = { drive_id: drive_id, file_id: file_id, url_expire_sec: 14400 }
     const resp = await AliHttp.Post(url, postData, user_id, '')
 
@@ -292,7 +307,7 @@ export default class AliFile {
     return undefined
   }
 
-  
+
   static async ApiFileGetPath(user_id: string, drive_id: string, file_id: string): Promise<IAliGetDirModel[]> {
     if (!user_id || !drive_id || !file_id) return []
     const url = 'adrive/v1/file/get_path'
@@ -307,8 +322,8 @@ export default class AliFile {
       const list: IAliGetDirModel[] = []
       for (let i = items.length - 1; i >= 0; i--) {
         const item = items[i]
-        if (item.file_id === 'root') item.file_id = driveType.key
-        if (item.parent_file_id === 'root') item.parent_file_id = driveType.key
+        console.log('item', item)
+        if (item.name === 'Default' || item.name === 'resource') continue
         list.push({
           __v_skip: true,
           drive_id: item.drive_id,
@@ -339,11 +354,17 @@ export default class AliFile {
     return []
   }
 
-  
+
   static async ApiFileGetPathString(user_id: string, drive_id: string, file_id: string, dirsplit: string): Promise<string> {
     if (!user_id || !drive_id || !file_id) return ''
-    if (file_id.includes('root')){
-      return file_id.startsWith('backup') ? '备份盘' : '资源盘'
+    if (file_id.includes('root')) {
+      if (file_id.startsWith('backup')) {
+        return '备份盘'
+      } else if (file_id.startsWith('resource')) {
+        return '资源盘'
+      } else if (file_id.startsWith('pic')) {
+        return '相册'
+      }
     }
     const url = 'adrive/v1/file/get_path'
     const postData = {
@@ -365,11 +386,11 @@ export default class AliFile {
     return ''
   }
 
-  
+
   static async ApiFileGetFolderSize(user_id: string, drive_id: string, file_id: string): Promise<IAliGetForderSizeModel | undefined> {
     if (!user_id || !drive_id || !file_id) return undefined
     const url = 'adrive/v1/file/get_folder_size_info'
-    
+
     const postData = {
       drive_id: drive_id,
       file_id: file_id
@@ -384,7 +405,7 @@ export default class AliFile {
     return { size: 0, folder_count: 0, file_count: 0, reach_limit: false }
   }
 
-  
+
   static async ApiFileDownText(user_id: string, drive_id: string, file_id: string, filesize: number, maxsize: number): Promise<string> {
     if (!user_id || !drive_id || !file_id) return ''
     const downUrl = await AliFile.ApiFileDownloadUrl(user_id, drive_id, file_id, 14400)
@@ -402,7 +423,7 @@ export default class AliFile {
     return ''
   }
 
-  
+
   static async ApiBiXueTuBatch(user_id: string, drive_id: string, file_id: string, duration: number, imageCount: number, imageWidth: number): Promise<IVideoXBTUrl[]> {
     if (!user_id || !drive_id || !file_id) return []
     if (duration <= 0) return []
@@ -416,7 +437,12 @@ export default class AliFile {
       mtime += subtime
       if (mtime > duration) break
       const postData = {
-        body: { drive_id: drive_id, file_id: file_id, url_expire_sec: 14400, video_thumbnail_process: 'video/snapshot,t_' + mtime.toString() + '000,f_jpg,ar_auto,m_fast,w_' + imageWidth.toString() },
+        body: {
+          drive_id: drive_id,
+          file_id: file_id,
+          url_expire_sec: 14400,
+          video_thumbnail_process: 'video/snapshot,t_' + mtime.toString() + '000,f_jpg,ar_auto,m_fast,w_' + imageWidth.toString()
+        },
         headers: { 'Content-Type': 'application/json' },
         id: (i.toString() + file_id).substr(0, file_id.length),
         method: 'POST',
@@ -466,9 +492,9 @@ export default class AliFile {
     return imgList
   }
 
-  
+
   static async ApiUpdateVideoTime(user_id: string, drive_id: string, file_id: string, play_cursor: number): Promise<IAliFileItem | undefined> {
-    if (!useSettingStore().uiAutoPlaycursorVideo) return 
+    if (!useSettingStore().uiAutoPlaycursorVideo) return
     if (!user_id || !drive_id || !file_id) return undefined
     let url = ''
     if (useSettingStore().uiEnableOpenApi) {

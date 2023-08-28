@@ -1,5 +1,6 @@
 <script setup lang='ts'>
 import {
+  menuAddAlbumSelectFile,
   menuCopyFileName,
   menuCopyFileTree,
   menuCopySelectedFile,
@@ -14,6 +15,7 @@ import {
 } from '../topbtns/topbtn'
 import { modalRename, modalShuXing } from '../../utils/modal'
 import { useSettingStore } from '../../store'
+import { computed } from 'vue'
 
 let istree = false
 const settingStore = useSettingStore()
@@ -42,9 +44,17 @@ const props = defineProps({
   inputsearchType: {
     type: String,
     required: true
+  },
+  inputpicType: {
+    type: String,
+    required: true
   }
 })
 
+const isShowBtn = computed(() => {
+  return (props.dirtype === 'pic' && props.inputpicType != 'mypic')
+    || props.dirtype === 'mypic' || props.dirtype === 'pan'
+})
 </script>
 
 <template>
@@ -63,18 +73,20 @@ const props = defineProps({
         <template #icon><i class='iconfont iconrss' /></template>
         <template #default>快传</template>
       </a-doption>
-      <a-doption v-show='!isallfavored' @click='() => menuFavSelectFile(istree, true)'>
+      <a-doption v-show='isselected && !isallfavored' @click='() => menuFavSelectFile(istree, true)'>
         <template #icon><i class='iconfont iconcrown' /></template>
         <template #default>收藏</template>
       </a-doption>
-      <a-doption v-show='isallfavored' @click='() => menuFavSelectFile(istree, false)'>
+      <a-doption v-show='isselected && isallfavored' @click='() => menuFavSelectFile(istree, false)'>
         <template #icon><i class='iconfont iconcrown2' /></template>
         <template #default>取消收藏</template>
       </a-doption>
-      <a-dsubmenu id='rightpansubbiaoji' class='rightmenu' trigger='hover'>
+      <a-dsubmenu v-if="dirtype !== 'pic'" id='rightpansubbiaoji' class='rightmenu' trigger='hover'>
         <template #default>
           <div @click.stop='() => {}'>
-            <span class='arco-dropdown-option-icon'><i class='iconfont iconwbiaoqian' style='opacity: 0.8'></i></span>标记
+            <span class='arco-dropdown-option-icon'>
+              <i class='iconfont iconwbiaoqian' style='opacity: 0.8'></i>
+            </span>标记
           </div>
         </template>
         <template #content>
@@ -101,11 +113,16 @@ const props = defineProps({
           </div>
         </template>
         <template #content>
-          <a-doption @click="() => menuCopySelectedFile(istree, 'cut')">
+          <a-doption v-show='isShowBtn && inputpicType !== "mypic" && dirtype !== "pan"'
+                     @click='() => menuAddAlbumSelectFile()'>
+            <template #icon><i class='iconfont iconmoveto' /></template>
+            <template #default>添加到相册</template>
+          </a-doption>
+          <a-doption v-show='isShowBtn' @click="() => menuCopySelectedFile(istree, 'cut')">
             <template #icon><i class='iconfont iconscissor' /></template>
             <template #default>移动到...</template>
           </a-doption>
-          <a-doption @click="() => menuCopySelectedFile(istree, 'copy')">
+          <a-doption v-show='isShowBtn' @click="() => menuCopySelectedFile(istree, 'copy')">
             <template #icon><i class='iconfont iconcopy' /></template>
             <template #default>复制到...</template>
           </a-doption>
@@ -116,12 +133,13 @@ const props = defineProps({
         </template>
       </a-dsubmenu>
 
-      <a-doption v-show="dirtype != 'video'" @click='() => modalRename(istree, isselectedmulti)'>
+      <a-doption v-show="dirtype != 'video'"
+                 @click='() => modalRename(istree, isselectedmulti, dirtype.includes("pic"))'>
         <template #icon><i class='iconfont iconedit-square' /></template>
         <template #default>重命名</template>
       </a-doption>
 
-      <a-doption @click='() => modalShuXing(istree, isselectedmulti, inputsearchType)'>
+      <a-doption @click='() => modalShuXing(istree, inputsearchType, dirtype.includes("pic"))'>
         <template #icon><i class='iconfont iconshuxing' /></template>
         <template #default>属性</template>
       </a-doption>
@@ -164,7 +182,8 @@ const props = defineProps({
             <template #icon><i class='iconfont iconlist' /></template>
             <template #default>复制文件名</template>
           </a-doption>
-          <a-doption v-show='isselected && !isselectedmulti' @click='() => menuCopyFileTree()'>
+          <a-doption v-show='!dirtype.includes("pic") && isselected && !isselectedmulti'
+                     @click='() => menuCopyFileTree()'>
             <template #icon><i class='iconfont iconnode-tree1' /></template>
             <template #default>复制目录树</template>
           </a-doption>
